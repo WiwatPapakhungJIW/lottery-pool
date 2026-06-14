@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { submitBets } from "@/app/actions";
+import { submitBets, parseSlip } from "@/app/actions";
 import { DEFAULT_PAYOUT_RATES, type BetType } from "@/scoring";
 import type { BetDraft } from "@/actions/placeBet";
+import type { SlipMediaType } from "@/ai";
 
 const BET_TYPES: { value: BetType; label: string }[] = [
   { value: "THREE_TOP", label: "3 ตัวบน" },
@@ -35,6 +36,8 @@ export function BetForm({
   const [cart, setCart] = useState<BetDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [reading, setReading] = useState(false);
+  const [slipNote, setSlipNote] = useState<string | null>(null);
 
   const rate = DEFAULT_PAYOUT_RATES[betType];
   const cartTotal = cart.reduce((s, b) => s + b.stakePoints, 0);
@@ -46,6 +49,45 @@ export function BetForm({
     if (cartTotal + stake > remaining) return setError("เกินงบที่เหลือ");
     setCart((c) => [...c, { betType, number, stakePoints: stake }]);
     setNumber("");
+  }
+
+  async function readSlip(file: File) {
+    setError(null);
+    setSlipNote(null);
+    const allowed = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      setError("รองรับเฉพาะรูป PNG / JPEG / WEBP");
+      return;
+    }
+    setReading(true);
+    try {
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result as string);
+        r.onerror = () => reject(new Error("อ่านไฟล์ไม่สำเร็จ"));
+        r.readAsDataURL(file);
+      });
+      const base64 = dataUrl.split(",")[1] ?? "";
+      const { ok, skipped } = await parseSlip(base64, file.type as SlipMediaType);
+      // กรองไม่ให้เกินงบที่เหลือ
+      let running = cartTotal;
+      const added: BetDraft[] = [];
+      for (const b of ok) {
+        if (running + b.stakePoints > remaining) break;
+        running += b.stakePoints;
+        added.push(b);
+      }
+      setCart((c) => [...c, ...added]);
+      setSlipNote(
+        `อ่านได้ ${ok.length} รายการ เพิ่มเข้าโพย ${added.length}` +
+          (skipped.length ? ` · ข้าม ${skipped.length}` : "") +
+          (added.length < ok.length ? " (บางรายการเกินงบ)" : ""),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "อ่านรูปไม่สำเร็จ");
+    } finally {
+      setReading(false);
+    }
   }
 
   function confirm() {
@@ -72,6 +114,27 @@ export function BetForm({
   return (
     <section>
       <h2>ลงโพย</h2>
+
+      <div style={{ marginBottom: 12 }}>
+        <label style={{ fontSize: 14 }}>
+          📷 อ่านจากรูปโพย{" "}
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            disabled={reading}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void readSlip(f);
+              e.target.value = "";
+            }}
+          />
+        </label>
+        {reading && <span> กำลังอ่าน…</span>}
+        {slipNote && (
+          <p style={{ fontSize: 13, color: "#555" }}>{slipNote}</p>
+        )}
+      </div>
+
       <select
         value={betType}
         onChange={(e) => setBetType(e.target.value as BetType)}
