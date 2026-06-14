@@ -1,0 +1,150 @@
+// schema.prisma — วงหวยกลุ่มเพื่อน (แต้มสนุก ไม่มีเงินจริง)
+// enum BetType / สถานะต่าง ๆ ตั้งให้ตรงกับ src/scoring.ts เป๊ะ
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────
+// Enums — ค่าต้องตรงกับ scoring.ts
+// ──────────────────────────────────────────────
+enum Role {
+  PLAYER
+  ADMIN
+}
+
+enum DrawStatus {
+  OPEN // เปิดรับโพย
+  CLOSED // ปิดรับแล้ว รอผล (แก้โพยไม่ได้)
+  SETTLED // คิดคะแนนเสร็จ
+}
+
+enum BetStatus {
+  PENDING
+  WIN
+  LOSE
+}
+
+enum BetType {
+  THREE_TOP // 3 ตัวบน
+  THREE_BOTTOM // 3 ตัวล่าง
+  THREE_TOTE // 3 ตัวโต๊ด
+  TWO_TOP // 2 ตัวบน
+  TWO_BOTTOM // 2 ตัวล่าง
+  TWO_TOTE // 2 ตัวโต๊ด
+  RUN_TOP // เลขวิ่งบน
+  RUN_BOTTOM // เลขวิ่งล่าง
+}
+
+// ──────────────────────────────────────────────
+// Models
+// ──────────────────────────────────────────────
+model User {
+  id          String   @id @default(cuid())
+  lineUserId  String   @unique // sub จาก LINE Login
+  displayName String
+  avatarUrl   String?
+  role        Role     @default(PLAYER)
+  createdAt   DateTime @default(now())
+
+  ownedRooms     Room[]       @relation("RoomOwner")
+  memberships    Membership[]
+  bets           Bet[]
+  enteredResults Result[]     @relation("ResultEnteredBy")
+}
+
+model Room {
+  id                 String   @id @default(cuid())
+  name               String
+  inviteCode         String   @unique // โค้ดเชิญเข้าวง
+  pointBudgetPerDraw Int      @default(10000) // งบแต้มต่อคนต่องวด
+  ownerId            String
+  createdAt          DateTime @default(now())
+
+  owner       User          @relation("RoomOwner", fields: [ownerId], references: [id])
+  memberships Membership[]
+  draws       Draw[]
+  rates       RoomBetRate[]
+}
+
+model Membership {
+  id          String   @id @default(cuid())
+  userId      String
+  roomId      String
+  totalPoints Int      @default(0) // แต้มสะสมในวงนี้
+  joinedAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roomId]) // หนึ่งคนต่อหนึ่งวง = หนึ่งแถว
+  @@index([roomId])
+}
+
+// เรตแต้มต่อวง (ออปชัน) — ถ้าไม่มีแถว ใช้ DEFAULT_PAYOUT_RATES ใน scoring.ts
+model RoomBetRate {
+  id      String  @id @default(cuid())
+  roomId  String
+  betType BetType
+  rate    Int
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, betType])
+}
+
+model Draw {
+  id        String     @id @default(cuid())
+  roomId    String
+  drawDate  DateTime   @db.Date // วันที่ของงวด (1 หรือ 16)
+  closeAt   DateTime // เวลาปิดรับ — server เช็คเสมอ
+  status    DrawStatus @default(OPEN)
+  createdAt DateTime   @default(now())
+  settledAt DateTime?
+
+  room   Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  result Result?
+  bets   Bet[]
+
+  @@unique([roomId, drawDate]) // หนึ่งงวดต่อวงต่อวันที่
+  @@index([roomId, status])
+}
+
+model Result {
+  id          String   @id @default(cuid())
+  drawId      String   @unique // 1:1 กับงวด
+  first6      String // รางวัลที่ 1 (6 หลัก)
+  last3a      String // เลขท้าย 3 ตัว ชุด 1
+  last3b      String // เลขท้าย 3 ตัว ชุด 2
+  last2       String // เลขท้าย 2 ตัว
+  enteredById String
+  createdAt   DateTime @default(now())
+
+  draw      Draw @relation(fields: [drawId], references: [id], onDelete: Cascade)
+  enteredBy User @relation("ResultEnteredBy", fields: [enteredById], references: [id])
+}
+
+model Bet {
+  id          String    @id @default(cuid())
+  drawId      String
+  userId      String
+  betType     BetType
+  number      String // เลขที่ทาย (3/2/1 หลักตามประเภท)
+  stakePoints Int // แต้มที่ลง (> 0)
+  payoutRate  Int // snapshot เรต ณ ตอนแทง → ตรงกับ Bet.payoutRate ใน scoring.ts
+  status      BetStatus @default(PENDING)
+  appliedRate Int? // เรตที่ใช้คิดจริงตอน settle
+  wonPoints   Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  draw Draw @relation(fields: [drawId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([drawId])
+  @@index([userId, drawId])
+}
