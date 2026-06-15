@@ -14,10 +14,9 @@ export function JoinForm({ initialCode = "" }: { initialCode?: string }) {
     setErr(null);
     start(async () => {
       try {
-        const { roomId, roomName } = await joinRoomAction(code);
+        const { roomId } = await joinRoomAction(code);
         router.push(`/room/${roomId}/leaderboard`);
         router.refresh();
-        void roomName;
       } catch (e) {
         setErr(e instanceof Error ? e.message : "เข้าร่วมไม่สำเร็จ");
       }
@@ -25,17 +24,24 @@ export function JoinForm({ initialCode = "" }: { initialCode?: string }) {
   }
 
   return (
-    <section>
-      <input
-        value={code}
-        onChange={(e) => setCode(e.target.value.toUpperCase())}
-        placeholder="โค้ดเชิญ เช่น DEMOAB12"
-        style={{ textTransform: "uppercase" }}
-      />{" "}
-      <button onClick={submit} disabled={pending || !code.trim()}>
+    <div>
+      <div className="field">
+        <label>โค้ดเชิญ</label>
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          placeholder="เช่น DEMOAB12"
+          style={{ textTransform: "uppercase", letterSpacing: 2 }}
+        />
+      </div>
+      <button
+        className="btn-primary btn-block"
+        onClick={submit}
+        disabled={pending || !code.trim()}
+      >
         {pending ? "กำลังเข้าร่วม…" : "เข้าร่วมวง"}
       </button>
-      {err && <p style={{ color: "crimson" }}>{err}</p>}
-    </section>
+      {err && <p className="note err">{err}</p>}
+    </div>
   );
 }

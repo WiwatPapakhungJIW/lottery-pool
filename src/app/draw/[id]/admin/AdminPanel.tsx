@@ -49,105 +49,115 @@ export function AdminPanel({
   }
 
   const field = (key: keyof ResultDraft, label: string, len: number) => (
-    <label style={{ display: "block", marginBottom: 8 }}>
-      {label}{" "}
+    <div className="field">
+      <label>{label}</label>
       <input
         value={form[key]}
         maxLength={len}
         inputMode="numeric"
         disabled={settled}
-        onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+        onChange={(e) =>
+          setForm({ ...form, [key]: e.target.value.replace(/\D/g, "") })
+        }
       />
-    </label>
+    </div>
   );
 
   return (
-    <section>
-      <h2>ผลรางวัล</h2>
-      {field("first6", "รางวัลที่ 1 (6 หลัก)", 6)}
-      {field("last3a", "เลขท้าย 3 ตัว ชุด 1", 3)}
-      {field("last3b", "เลขท้าย 3 ตัว ชุด 2", 3)}
-      {field("last2", "เลขท้าย 2 ตัว", 2)}
+    <>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>ผลรางวัล</h3>
+        {field("first6", "รางวัลที่ 1 (6 หลัก)", 6)}
+        {field("last3a", "เลขท้าย 3 ตัว ชุด 1", 3)}
+        {field("last3b", "เลขท้าย 3 ตัว ชุด 2", 3)}
+        {field("last2", "เลขท้าย 2 ตัว", 2)}
 
-      {!settled && (
-        <button
-          disabled={pending}
-          onClick={() =>
-            run(async () => {
-              await adminEnterResult({ drawId, ...form });
-              setMsg("บันทึกผลแล้ว");
-            })
-          }
-        >
-          บันทึกผล
-        </button>
-      )}
-
-      <hr />
-
-      {!settled && (
-        <>
+        {!settled && (
           <button
+            className="btn-block"
             disabled={pending}
             onClick={() =>
               run(async () => {
-                const s = await adminPreviewSettlement(drawId);
-                setPreview(s);
+                await adminEnterResult({ drawId, ...form });
+                setMsg("บันทึกผลแล้ว");
               })
             }
           >
-            ดูตัวอย่างผลคิดคะแนน
-          </button>{" "}
-          <button
-            disabled={pending}
-            onClick={() =>
-              run(async () => {
-                const s = await adminCloseAndSettle(drawId);
-                setPreview(s);
-                setMsg("เคลียร์งวดเรียบร้อย แต้มอัปเดตแล้ว");
-              })
-            }
-          >
-            เคลียร์งวด (คิดคะแนนจริง)
+            บันทึกผล
           </button>
-        </>
-      )}
+        )}
+      </div>
 
-      {settled && (
-        <button
-          disabled={pending}
-          onClick={() =>
-            run(async () => {
-              await adminRevertSettlement(drawId);
-              setPreview(null);
-              setMsg("ยกเลิกการเคลียร์แล้ว งวดกลับเป็น CLOSED");
-            })
-          }
-        >
-          ยกเลิกการเคลียร์งวด
-        </button>
-      )}
-
-      {msg && <p style={{ color: "green" }}>{msg}</p>}
-      {err && <p style={{ color: "crimson" }}>{err}</p>}
+      <div className="card stack-sm">
+        {!settled && (
+          <>
+            <button
+              className="btn-block"
+              disabled={pending}
+              onClick={() =>
+                run(async () => setPreview(await adminPreviewSettlement(drawId)))
+              }
+            >
+              ดูตัวอย่างผลคิดคะแนน
+            </button>
+            <button
+              className="btn-primary btn-block"
+              disabled={pending}
+              onClick={() =>
+                run(async () => {
+                  setPreview(await adminCloseAndSettle(drawId));
+                  setMsg("เคลียร์งวดเรียบร้อย แต้มอัปเดตแล้ว");
+                })
+              }
+            >
+              เคลียร์งวด (คิดคะแนนจริง)
+            </button>
+          </>
+        )}
+        {settled && (
+          <button
+            className="btn-danger btn-block"
+            disabled={pending}
+            onClick={() =>
+              run(async () => {
+                await adminRevertSettlement(drawId);
+                setPreview(null);
+                setMsg("ยกเลิกการเคลียร์แล้ว งวดกลับเป็น CLOSED");
+              })
+            }
+          >
+            ยกเลิกการเคลียร์งวด
+          </button>
+        )}
+        {msg && <p className="note ok">{msg}</p>}
+        {err && <p className="note err">{err}</p>}
+      </div>
 
       {preview && (
-        <div>
-          <h3>สรุป</h3>
-          <p>
-            รวมแต้มที่ลง {preview.totalStaked.toLocaleString()} · รวมแต้มที่ถูก{" "}
-            {preview.totalWon.toLocaleString()}
-          </p>
-          <ul>
-            {Object.entries(preview.perUser).map(([uid, agg]) => (
-              <li key={uid}>
-                {uid}: ลง {agg.staked.toLocaleString()} · ได้{" "}
-                {agg.won.toLocaleString()} · สุทธิ {agg.net.toLocaleString()}
-              </li>
-            ))}
-          </ul>
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>สรุป</h3>
+          <div className="row-between">
+            <span className="muted">รวมแต้มที่ลง</span>
+            <strong>{preview.totalStaked.toLocaleString()}</strong>
+          </div>
+          <div className="row-between">
+            <span className="muted">รวมแต้มที่ถูก</span>
+            <strong>{preview.totalWon.toLocaleString()}</strong>
+          </div>
+          <div className="divider" />
+          {Object.entries(preview.perUser).map(([uid, agg]) => (
+            <div className="list-row" key={uid}>
+              <span style={{ flex: 1, fontSize: 13 }} className="muted">
+                {uid.slice(0, 10)}…
+              </span>
+              <span className={agg.net >= 0 ? "delta-up" : "delta-down"}>
+                {agg.net >= 0 ? "+" : ""}
+                {agg.net.toLocaleString()}
+              </span>
+            </div>
+          ))}
         </div>
       )}
-    </section>
+    </>
   );
 }

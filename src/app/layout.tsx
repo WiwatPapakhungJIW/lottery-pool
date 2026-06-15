@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "วงหวยเพื่อน",
@@ -9,15 +10,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="th">
-      <body
-        style={{
-          fontFamily: "system-ui, -apple-system, sans-serif",
-          maxWidth: 480,
-          margin: "0 auto",
-          padding: "16px",
-        }}
-      >
-        {children}
+      <body>
+        <div className="app">{children}</div>
       </body>
     </html>
   );

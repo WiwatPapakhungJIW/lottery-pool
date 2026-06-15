@@ -6,16 +6,18 @@ import { DEFAULT_PAYOUT_RATES, type BetType } from "@/scoring";
 import type { BetDraft } from "@/actions/placeBet";
 import type { SlipMediaType } from "@/ai";
 
-const BET_TYPES: { value: BetType; label: string }[] = [
-  { value: "THREE_TOP", label: "3 ตัวบน" },
-  { value: "THREE_BOTTOM", label: "3 ตัวล่าง" },
-  { value: "THREE_TOTE", label: "3 ตัวโต๊ด" },
-  { value: "TWO_TOP", label: "2 ตัวบน" },
-  { value: "TWO_BOTTOM", label: "2 ตัวล่าง" },
-  { value: "TWO_TOTE", label: "2 ตัวโต๊ด" },
-  { value: "RUN_TOP", label: "วิ่งบน" },
-  { value: "RUN_BOTTOM", label: "วิ่งล่าง" },
+const BET_TYPES: { value: BetType; label: string; digits: number }[] = [
+  { value: "THREE_TOP", label: "3 ตัวบน", digits: 3 },
+  { value: "THREE_BOTTOM", label: "3 ตัวล่าง", digits: 3 },
+  { value: "THREE_TOTE", label: "3 ตัวโต๊ด", digits: 3 },
+  { value: "TWO_TOP", label: "2 ตัวบน", digits: 2 },
+  { value: "TWO_BOTTOM", label: "2 ตัวล่าง", digits: 2 },
+  { value: "TWO_TOTE", label: "2 ตัวโต๊ด", digits: 2 },
+  { value: "RUN_TOP", label: "วิ่งบน", digits: 1 },
+  { value: "RUN_BOTTOM", label: "วิ่งล่าง", digits: 1 },
 ];
+
+const LABEL = Object.fromEntries(BET_TYPES.map((t) => [t.value, t.label]));
 
 type SavedBet = BetDraft & { id: string };
 
@@ -41,10 +43,13 @@ export function BetForm({
 
   const rate = DEFAULT_PAYOUT_RATES[betType];
   const cartTotal = cart.reduce((s, b) => s + b.stakePoints, 0);
+  const need = BET_TYPES.find((t) => t.value === betType)?.digits ?? 2;
 
   function addToCart() {
     setError(null);
     if (!/^\d+$/.test(number)) return setError("ใส่เป็นตัวเลขเท่านั้น");
+    if (number.length !== need)
+      return setError(`ประเภทนี้ต้องใส่เลข ${need} หลัก`);
     if (stake <= 0) return setError("แต้มต้องมากกว่า 0");
     if (cartTotal + stake > remaining) return setError("เกินงบที่เหลือ");
     setCart((c) => [...c, { betType, number, stakePoints: stake }]);
@@ -69,7 +74,6 @@ export function BetForm({
       });
       const base64 = dataUrl.split(",")[1] ?? "";
       const { ok, skipped } = await parseSlip(base64, file.type as SlipMediaType);
-      // กรองไม่ให้เกินงบที่เหลือ
       let running = cartTotal;
       const added: BetDraft[] = [];
       for (const b of ok) {
@@ -104,95 +108,132 @@ export function BetForm({
 
   if (disabled) {
     return (
-      <section>
-        <p>งวดนี้ปิดรับแล้ว ดูโพยที่ส่งไปแล้วด้านล่าง</p>
+      <div className="card">
+        <p className="muted">งวดนี้ปิดรับแล้ว — ดูโพยที่ส่งไปแล้วด้านล่าง</p>
         <SavedList bets={myBets} />
-      </section>
+      </div>
     );
   }
 
   return (
-    <section>
-      <h2>ลงโพย</h2>
-
-      <div style={{ marginBottom: 12 }}>
-        <label style={{ fontSize: 14 }}>
-          📷 อ่านจากรูปโพย{" "}
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            disabled={reading}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void readSlip(f);
-              e.target.value = "";
-            }}
-          />
-        </label>
-        {reading && <span> กำลังอ่าน…</span>}
-        {slipNote && (
-          <p style={{ fontSize: 13, color: "#555" }}>{slipNote}</p>
-        )}
+    <>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>📷 อ่านจากรูปโพย</h3>
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          disabled={reading}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void readSlip(f);
+            e.target.value = "";
+          }}
+        />
+        {reading && <p className="note">กำลังอ่าน…</p>}
+        {slipNote && <p className="note ok">{slipNote}</p>}
       </div>
 
-      <select
-        value={betType}
-        onChange={(e) => setBetType(e.target.value as BetType)}
-      >
-        {BET_TYPES.map((t) => (
-          <option key={t.value} value={t.value}>
-            {t.label}
-          </option>
-        ))}
-      </select>
-      <input
-        value={number}
-        onChange={(e) => setNumber(e.target.value)}
-        placeholder="เลขที่ทาย"
-        inputMode="numeric"
-      />
-      <input
-        type="number"
-        value={stake}
-        onChange={(e) => setStake(Number(e.target.value))}
-        min={1}
-      />
-      <p>ถ้าถูกได้ {(stake * rate).toLocaleString()} แต้ม (×{rate})</p>
-      <button onClick={addToCart}>เพิ่มลงโพย</button>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>ประเภทการทาย</h3>
+        <div className="chips">
+          {BET_TYPES.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              className={"chip" + (betType === t.value ? " active" : "")}
+              onClick={() => setBetType(t.value)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="field" style={{ marginTop: 14 }}>
+          <label>เลขที่ทาย ({need} หลัก)</label>
+          <input
+            value={number}
+            onChange={(e) => setNumber(e.target.value.replace(/\D/g, ""))}
+            placeholder={"0".repeat(need)}
+            inputMode="numeric"
+            maxLength={need}
+          />
+        </div>
+
+        <div className="field">
+          <label>แต้มที่ลง</label>
+          <input
+            type="number"
+            value={stake}
+            onChange={(e) => setStake(Number(e.target.value))}
+            min={1}
+          />
+        </div>
+
+        <div className="payout">
+          <span>ถ้าถูก ได้</span>
+          <span>
+            {(stake * rate).toLocaleString()} แต้ม{" "}
+            <span style={{ fontWeight: 400, fontSize: 12 }}>(×{rate})</span>
+          </span>
+        </div>
+
+        <button className="btn-block" onClick={addToCart}>
+          + เพิ่มลงโพย
+        </button>
+      </div>
 
       {cart.length > 0 && (
-        <div>
-          <h3>รอยืนยัน ({cart.length})</h3>
-          <ul>
-            {cart.map((b, i) => (
-              <li key={i}>
-                {b.number} · {b.betType} · {b.stakePoints} แต้ม
-              </li>
-            ))}
-          </ul>
-          <button onClick={confirm} disabled={pending}>
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>รอยืนยัน ({cart.length})</h3>
+          {cart.map((b, i) => (
+            <div className="list-row" key={i}>
+              <div style={{ flex: 1 }}>
+                <strong>{b.number}</strong>{" "}
+                <span className="faint">· {LABEL[b.betType]}</span>
+              </div>
+              <span className="muted">{b.stakePoints} แต้ม</span>
+              <button
+                className="btn-sm btn-danger"
+                onClick={() => setCart((c) => c.filter((_, j) => j !== i))}
+              >
+                ลบ
+              </button>
+            </div>
+          ))}
+          <button
+            className="btn-primary btn-block"
+            style={{ marginTop: 12 }}
+            onClick={confirm}
+            disabled={pending}
+          >
             {pending ? "กำลังส่ง…" : `ยืนยันโพยทั้งหมด (${cartTotal} แต้ม)`}
           </button>
         </div>
       )}
 
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
+      {error && <p className="note err">{error}</p>}
 
-      <h3>โพยของฉัน</h3>
-      <SavedList bets={myBets} />
-    </section>
+      <h2>โพยของฉัน</h2>
+      <div className="card">
+        <SavedList bets={myBets} />
+      </div>
+    </>
   );
 }
 
 function SavedList({ bets }: { bets: SavedBet[] }) {
-  if (bets.length === 0) return <p>ยังไม่มีโพย</p>;
+  if (bets.length === 0) return <div className="empty">ยังไม่มีโพย</div>;
   return (
-    <ul>
+    <>
       {bets.map((b) => (
-        <li key={b.id}>
-          {b.number} · {b.betType} · {b.stakePoints} แต้ม
-        </li>
+        <div className="list-row" key={b.id}>
+          <div style={{ flex: 1 }}>
+            <strong>{b.number}</strong>{" "}
+            <span className="faint">· {LABEL[b.betType]}</span>
+          </div>
+          <span className="muted">{b.stakePoints} แต้ม</span>
+        </div>
       ))}
-    </ul>
+    </>
   );
 }

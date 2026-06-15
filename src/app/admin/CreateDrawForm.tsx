@@ -26,27 +26,32 @@ export function CreateDrawForm({ roomId }: { roomId: string }) {
   }
 
   return (
-    <div style={{ marginTop: 6 }}>
-      <label style={{ fontSize: 13 }}>
-        วันที่งวด{" "}
+    <div>
+      <h3 style={{ marginTop: 0 }}>เปิดงวดใหม่</h3>
+      <div className="field">
+        <label>วันที่งวด</label>
         <input
           type="date"
           value={drawDate}
           onChange={(e) => setDrawDate(e.target.value)}
         />
-      </label>{" "}
-      <label style={{ fontSize: 13 }}>
-        ปิดรับ{" "}
+      </div>
+      <div className="field">
+        <label>เวลาปิดรับ</label>
         <input
           type="datetime-local"
           value={closeAt}
           onChange={(e) => setCloseAt(e.target.value)}
         />
-      </label>{" "}
-      <button onClick={submit} disabled={pending || !drawDate || !closeAt}>
+      </div>
+      <button
+        className="btn-block"
+        onClick={submit}
+        disabled={pending || !drawDate || !closeAt}
+      >
         {pending ? "กำลังเปิด…" : "เปิดงวด"}
       </button>
-      {err && <p style={{ color: "crimson", fontSize: 13 }}>{err}</p>}
+      {err && <p className="note err">{err}</p>}
     </div>
   );
 }

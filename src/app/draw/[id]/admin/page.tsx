@@ -1,9 +1,16 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/db";
+import { drawSummary } from "@/actions/summary";
 import { AdminPanel } from "./AdminPanel";
 
-// หน้าแอดมินของงวด — กรอกผล / preview / เคลียร์ / ยกเลิก
+const STATUS: Record<string, { cls: string; label: string }> = {
+  OPEN: { cls: "open", label: "เปิดรับ" },
+  CLOSED: { cls: "closed", label: "ปิดรับแล้ว" },
+  SETTLED: { cls: "settled", label: "ออกผลแล้ว" },
+};
+
 export default async function AdminDrawPage({
   params,
 }: {
@@ -11,22 +18,34 @@ export default async function AdminDrawPage({
 }) {
   const { id } = await params;
   const session = await auth();
-  if (!session?.user) return null; // middleware กันล็อกอินอยู่แล้ว
-  if (session.user.role !== "ADMIN") redirect(`/draw/${id}`); // ไม่ใช่แอดมิน → กลับหน้าเล่น
+  if (!session?.user) return null;
+  if (session.user.role !== "ADMIN") redirect(`/draw/${id}`);
 
   const draw = await prisma.draw.findUnique({
     where: { id },
     include: { room: true, result: true, _count: { select: { bets: true } } },
   });
   if (!draw) notFound();
+  const st = STATUS[draw.status] ?? STATUS.OPEN!;
+  const summary = await drawSummary(id);
 
   return (
     <main>
-      <h1>แอดมิน · {draw.room.name}</h1>
-      <p>
-        งวด {draw.drawDate.toLocaleDateString("th-TH")} · สถานะ {draw.status} ·
-        โพยทั้งหมด {draw._count.bets} ใบ
-      </p>
+      <div className="topbar">
+        <div className="brand">
+          <Link href="/admin" style={{ fontSize: 20 }}>
+            ‹
+          </Link>
+          <div>
+            <h1>{draw.room.name}</h1>
+            <div className="faint">
+              งวด {draw.drawDate.toLocaleDateString("th-TH")} · โพย{" "}
+              {draw._count.bets} ใบ
+            </div>
+          </div>
+        </div>
+        <span className={"badge " + st.cls}>{st.label}</span>
+      </div>
 
       <AdminPanel
         drawId={id}
@@ -42,6 +61,25 @@ export default async function AdminDrawPage({
             : null
         }
       />
+
+      <h2>สรุปรายลูกค้า</h2>
+      <div className="card">
+        {summary.length === 0 && <div className="empty">ยังไม่มีโพยในงวดนี้</div>}
+        {summary.map((p) => (
+          <div className="list-row" key={p.userId}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 500 }}>{p.name}</div>
+              <span className="faint">
+                ลง {p.staked.toLocaleString()} · ถูก {p.won.toLocaleString()}
+              </span>
+            </div>
+            <strong className={p.net >= 0 ? "delta-up" : "delta-down"}>
+              {p.net >= 0 ? "+" : ""}
+              {p.net.toLocaleString()}
+            </strong>
+          </div>
+        ))}
+      </div>
     </main>
   );
 }

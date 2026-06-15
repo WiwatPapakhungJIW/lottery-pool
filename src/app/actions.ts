@@ -10,6 +10,8 @@ import { joinRoom } from "@/actions/joinRoom";
 import { createRoom } from "@/actions/createRoom";
 import { createDraw } from "@/actions/createDraw";
 import { parseBetSlipImage, type SlipMediaType } from "@/ai";
+import { setRoomRates } from "@/actions/rates";
+import type { BetType } from "@/scoring";
 import { enterResult } from "@/actions/enterResult";
 import {
   closeAndSettle,
@@ -57,6 +59,17 @@ export async function adminCreateRoom(name: string, pointBudgetPerDraw: number) 
   revalidatePath("/admin");
   revalidatePath("/");
   return { id: room.id, inviteCode: room.inviteCode };
+}
+
+export async function adminSetRoomRates(
+  roomId: string,
+  entries: { betType: BetType; rate: number }[],
+) {
+  await requireAdmin();
+  const res = await setRoomRates(roomId, entries);
+  revalidatePath(`/admin/room/${roomId}/rates`);
+  revalidatePath("/admin");
+  return res;
 }
 
 export async function adminCreateDraw(

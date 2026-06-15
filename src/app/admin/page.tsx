@@ -5,10 +5,15 @@ import { prisma } from "@/db";
 import { CreateRoomForm } from "./CreateRoomForm";
 import { CreateDrawForm } from "./CreateDrawForm";
 
-// ศูนย์กลางแอดมิน — สร้างวง / เปิดงวด / เข้าหน้าจัดการแต่ละงวด
+const STATUS: Record<string, string> = {
+  OPEN: "open",
+  CLOSED: "closed",
+  SETTLED: "settled",
+};
+
 export default async function AdminHomePage() {
   const session = await auth();
-  if (!session?.user) return null; // middleware กันล็อกอินอยู่แล้ว
+  if (!session?.user) return null;
   if (session.user.role !== "ADMIN") redirect("/");
 
   const rooms = await prisma.room.findMany({
@@ -21,49 +26,62 @@ export default async function AdminHomePage() {
 
   return (
     <main>
-      <h1>แอดมิน</h1>
-      <p>
-        <Link href="/">← กลับหน้าแรก</Link>
-      </p>
+      <div className="topbar">
+        <div className="brand">
+          <Link href="/" style={{ fontSize: 20 }}>
+            ‹
+          </Link>
+          <h1>แอดมิน</h1>
+        </div>
+      </div>
 
-      <h2>สร้างวงใหม่</h2>
-      <CreateRoomForm />
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>สร้างวงใหม่</h3>
+        <CreateRoomForm />
+      </div>
 
-      <h2 style={{ marginTop: 24 }}>วงทั้งหมด</h2>
-      {rooms.length === 0 && <p>ยังไม่มีวง</p>}
+      <h2>วงทั้งหมด</h2>
+      {rooms.length === 0 && (
+        <div className="card">
+          <div className="empty">ยังไม่มีวง</div>
+        </div>
+      )}
 
       {rooms.map((room) => (
-        <section
-          key={room.id}
-          style={{
-            border: "1px solid #eee",
-            borderRadius: 12,
-            padding: 12,
-            marginBottom: 12,
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <div className="card" key={room.id}>
+          <div className="row-between">
             <strong>{room.name}</strong>
-            <span style={{ fontSize: 13, color: "#666" }}>
-              โค้ดเชิญ <b>{room.inviteCode}</b> · {room._count.memberships} คน
+            <span className="badge neutral">{room._count.memberships} คน</span>
+          </div>
+          <p className="faint" style={{ margin: "4px 0 8px" }}>
+            โค้ดเชิญ{" "}
+            <span style={{ fontWeight: 600, letterSpacing: 1 }}>
+              {room.inviteCode}
             </span>
+          </p>
+          <div className="actions" style={{ marginBottom: 8 }}>
+            <Link href={`/admin/room/${room.id}/rates`}>อัตราจ่าย</Link>
           </div>
 
-          <div style={{ marginTop: 8 }}>
-            {room.draws.length === 0 && (
-              <p style={{ color: "#999", fontSize: 13 }}>ยังไม่มีงวด</p>
-            )}
-            {room.draws.map((d) => (
-              <div key={d.id} style={{ fontSize: 14, padding: "2px 0" }}>
-                งวด {d.drawDate.toLocaleDateString("th-TH")} · {d.status} ·{" "}
-                <Link href={`/draw/${d.id}/admin`}>จัดการ</Link> ·{" "}
-                <Link href={`/draw/${d.id}`}>หน้าเล่น</Link>
+          {room.draws.length === 0 && (
+            <p className="note">ยังไม่มีงวด</p>
+          )}
+          {room.draws.map((d) => (
+            <div className="list-row" key={d.id}>
+              <div style={{ flex: 1 }}>
+                งวด {d.drawDate.toLocaleDateString("th-TH")}{" "}
+                <span className={"badge " + (STATUS[d.status] ?? "neutral")}>
+                  {d.status}
+                </span>
               </div>
-            ))}
-          </div>
+              <Link href={`/draw/${d.id}/admin`}>จัดการ</Link>
+              <Link href={`/draw/${d.id}`}>เล่น</Link>
+            </div>
+          ))}
 
+          <div className="divider" />
           <CreateDrawForm roomId={room.id} />
-        </section>
+        </div>
       ))}
     </main>
   );
