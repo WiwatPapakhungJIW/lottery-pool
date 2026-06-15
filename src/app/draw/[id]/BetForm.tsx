@@ -94,6 +94,10 @@ export function BetForm({
     }
   }
 
+  function updateCart(i: number, patch: Partial<BetDraft>) {
+    setCart((c) => c.map((b, j) => (j === i ? { ...b, ...patch } : b)));
+  }
+
   function confirm() {
     setError(null);
     startTransition(async () => {
@@ -185,18 +189,46 @@ export function BetForm({
       {cart.length > 0 && (
         <div className="card">
           <h3 style={{ marginTop: 0 }}>รอยืนยัน ({cart.length})</h3>
+          <p className="faint" style={{ marginTop: 0 }}>
+            แก้เลข/แต้มได้ถ้าระบบอ่านเพี้ยน
+          </p>
           {cart.map((b, i) => (
             <div className="list-row" key={i}>
-              <div style={{ flex: 1 }}>
-                <strong>{b.number}</strong>{" "}
-                <span className="faint">· {LABEL[b.betType]}</span>
-              </div>
-              <span className="muted">{b.stakePoints} แต้ม</span>
+              <select
+                value={b.betType}
+                onChange={(e) =>
+                  updateCart(i, { betType: e.target.value as BetType })
+                }
+                style={{ width: 110 }}
+              >
+                {BET_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={b.number}
+                inputMode="numeric"
+                onChange={(e) =>
+                  updateCart(i, { number: e.target.value.replace(/\D/g, "") })
+                }
+                style={{ width: 72, textAlign: "center", fontWeight: 600 }}
+              />
+              <input
+                type="number"
+                value={b.stakePoints}
+                min={1}
+                onChange={(e) =>
+                  updateCart(i, { stakePoints: Number(e.target.value) })
+                }
+                style={{ width: 64 }}
+              />
               <button
                 className="btn-sm btn-danger"
                 onClick={() => setCart((c) => c.filter((_, j) => j !== i))}
               >
-                ลบ
+                ✕
               </button>
             </div>
           ))}
